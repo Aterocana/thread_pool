@@ -5,6 +5,13 @@ use std::sync::{mpsc, Arc, Mutex};
 mod errors;
 mod worker;
 
+// A ThreadPool is a set of workers which execute jobs, which are sent
+// over a mspc channel.
+// Once a ThreadPool is instantiated, jobs can be sent through execute
+// function, which assign a job to the first worker acquiring the job
+// Message.
+// When a ThreadPool is dropped a Terminate Message is sent to all workers,
+// in order to having them exiting their endless loop.
 pub struct ThreadPool {
     workers: Vec<worker::Worker>,
     sender: mpsc::Sender<worker::Message>,

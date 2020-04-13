@@ -6,8 +6,8 @@ mod errors;
 mod worker;
 
 pub struct ThreadPool {
-    _workers: Vec<worker::Worker>,
-    sender: mpsc::Sender<worker::Job>,
+    workers: Vec<worker::Worker>,
+    sender: mpsc::Sender<worker::Message>,
 }
 
 impl ThreadPool {
@@ -17,11 +17,11 @@ impl ThreadPool {
         }
         let (sender, rx) = mpsc::channel();
         let rx = Arc::new(Mutex::new(rx));
-        let mut _workers = Vec::with_capacity(size);
+        let mut workers = Vec::with_capacity(size);
         for i in 0..size {
-            _workers.push(worker::Worker::new(i, Arc::clone(&rx)));
+            workers.push(worker::Worker::new(i, Arc::clone(&rx)));
         }
-        Ok(ThreadPool { _workers, sender })
+        Ok(ThreadPool { workers, sender })
     }
 
     pub fn execute<F>(&self, f: F) -> Result<(), Box<dyn Error>>
@@ -30,7 +30,33 @@ impl ThreadPool {
     {
         let job = Box::new(f);
 
-        self.sender.send(job)?;
+        self.sender.send(worker::Message::NewJob(job))?;
         Ok(())
+    }
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        println!("Sending terminate message to all workers.");
+
+        for _ in &mut self.workers {
+            self.sender.send(worker::Message::Terminate).unwrap();
+        }
+
+        println!("Shutting down all workers.");
+        for worker in &mut self.workers {
+            println!("Shutting down worker {}.", worker.id);
+            self.sender.send(worker::Message::Terminate);
+            // the take method on Option takes the Some variant out
+            // and leaves None in its place
+            if let Some(t) = worker.thread.take() {
+                t.join().unwrap();
+            }
+            // match worker.thread.take() {
+            //     Some(t) => t.join().unwrap(),
+            //     None => (),
+            // }
+            println!("Worker {} shut down", worker.id);
+        }
     }
 }

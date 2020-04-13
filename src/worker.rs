@@ -7,25 +7,38 @@ use std::thread;
 // 'static bound is the object lifetime.
 pub type Job = Box<dyn FnOnce() + Send + 'static>;
 
+pub enum Message {
+    NewJob(Job),
+    Terminate,
+}
+
 pub struct Worker {
-    _id: usize,
-    _f: thread::JoinHandle<()>,
+    pub id: usize,
+    pub thread: Option<thread::JoinHandle<()>>,
 }
 
 impl Worker {
-    pub fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
+    pub fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
+        let mut thread = thread::spawn(move || loop {
+            let msg = receiver
+                .lock()
+                .expect("error occurred while trying to acquire lock")
+                .recv()
+                .expect("error occurred while trying to receive from channel");
+            match msg {
+                Message::NewJob(job) => {
+                    // println!("worker {} got a job: executing.", id);
+                    job();
+                }
+                Message::Terminate => {
+                    // println!("job {} terminating", id);
+                    break;
+                }
+            }
+        });
         Worker {
-            _id: id,
-            _f: thread::spawn(move || loop {
-                let job = receiver
-                    .lock()
-                    .expect("error occurred while trying to acquire lock")
-                    .recv()
-                    .expect("error occurred while trying to receive from channel");
-
-                println!("worker {} got a job: executing.", id);
-                job();
-            }),
+            id: id,
+            thread: Some(thread),
         }
     }
 }

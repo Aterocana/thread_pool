@@ -37,26 +37,18 @@ impl ThreadPool {
 
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        println!("Sending terminate message to all workers.");
-
         for _ in &mut self.workers {
-            self.sender.send(worker::Message::Terminate).unwrap();
+            self.sender
+                .send(worker::Message::Terminate)
+                .expect("error on sending");
         }
 
-        println!("Shutting down all workers.");
         for worker in &mut self.workers {
-            println!("Shutting down worker {}.", worker.id);
-            self.sender.send(worker::Message::Terminate);
             // the take method on Option takes the Some variant out
             // and leaves None in its place
             if let Some(t) = worker.thread.take() {
                 t.join().unwrap();
             }
-            // match worker.thread.take() {
-            //     Some(t) => t.join().unwrap(),
-            //     None => (),
-            // }
-            println!("Worker {} shut down", worker.id);
         }
     }
 }

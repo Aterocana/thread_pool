@@ -19,7 +19,7 @@ pub struct Worker {
 
 impl Worker {
     pub fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
-        let mut thread = thread::spawn(move || loop {
+        let thread = thread::spawn(move || loop {
             let msg = receiver
                 .lock()
                 .expect("error occurred while trying to acquire lock")
